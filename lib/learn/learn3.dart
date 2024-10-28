@@ -1,9 +1,11 @@
-import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'dart:math';
 
 import 'package:learn_animate/learn/learn4.dart';
+
+import 'controller/eye_controller.dart';
 
 class Learn3 extends StatelessWidget {
   const Learn3({super.key});
@@ -32,155 +34,61 @@ class Learn3 extends StatelessWidget {
   }
 }
 
-class EyeWidget extends StatefulWidget {
+class EyeWidget extends StatelessWidget {
   const EyeWidget({super.key});
 
   @override
-  State<EyeWidget> createState() => _EyeWidgetState();
-}
-
-class _EyeWidgetState extends State<EyeWidget>
-    with SingleTickerProviderStateMixin {
-  Offset leftEyePosition = const Offset(150, 200);
-  Offset rightEyePosition = const Offset(260, 200);
-  double eyeRadius = 50;
-
-  Offset leftPupilPosition = const Offset(150, 200);
-  Offset rightPupilPosition = const Offset(260, 200);
-
-  Timer? _tapUpTimer;
-  final Duration tapUpDelay = const Duration(seconds: 3);
-
-  late AnimationController _controller;
-  late Animation<Offset> _leftPupilAnimation;
-  late Animation<Offset> _rightPupilAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-
-    _leftPupilAnimation =
-        Tween<Offset>(begin: leftPupilPosition, end: leftPupilPosition)
-            .animate(_controller);
-    _rightPupilAnimation =
-        Tween<Offset>(begin: rightPupilPosition, end: rightPupilPosition)
-            .animate(_controller);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _tapUpTimer?.cancel();
-
-    super.dispose();
-  }
-
-  void _movePupils(Offset leftPosition, Offset? rightPosition) {
-    setState(() {
-      _leftPupilAnimation =
-          Tween<Offset>(begin: leftPupilPosition, end: leftPosition)
-              .animate(_controller);
-      _rightPupilAnimation =
-          Tween<Offset>(begin: rightPupilPosition, end: rightPosition)
-              .animate(_controller);
-
-      _controller.forward(from: 0);
-
-      _leftPupilAnimation.addListener(() {
-        setState(() {
-          leftPupilPosition = _leftPupilAnimation.value;
-        });
-      });
-      _rightPupilAnimation.addListener(() {
-        setState(() {
-          rightPupilPosition = _rightPupilAnimation.value;
-        });
-      });
-    });
-  }
-
-  void _handleTapDown(TapDownDetails details) {
-    _tapUpTimer?.cancel();
-
-    _movePupils(details.localPosition, details.localPosition);
-  }
-
-  void _handleTapUp(TapUpDetails details) {
-    _tapUpTimer?.cancel();
-
-    _tapUpTimer = Timer(tapUpDelay, () {
-      _movePupils(const Offset(150, 200), const Offset(250, 200));
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = Get.put(EyeController());
+
     return GestureDetector(
-      onTapDown: _handleTapDown,
-      onTapUp: _handleTapUp,
+      onTapDown: (details) => controller.handleTapDown(details.localPosition),
+      onTapUp: (_) => controller.handleTapUp(),
       onPanUpdate: (details) {
-        setState(() {
-          leftPupilPosition = details.localPosition;
-          rightPupilPosition = details.localPosition;
-        });
+        controller.leftPupilPosition.value = details.localPosition;
+        controller.rightPupilPosition.value = details.localPosition;
       },
-      onPanEnd: (details) {
-        Future.delayed(const Duration(seconds: 4), () {
-          _movePupils(const Offset(150, 200), const Offset(250, 200));
-        });
-      },
+      onPanEnd: (_) => controller.resetPupilsAfterDelay(const Duration(seconds: 4)),
       child: Stack(
         children: [
           SizedBox(
             width: 400,
             height: 400,
-            child: CustomPaint(
-              painter: DoubleEyePainter(
-                leftEyeCenter: leftEyePosition,
-                rightEyeCenter: rightEyePosition,
-                eyeRadius: eyeRadius,
-                leftPupilOffset:
-                    _calculatePupilOffset(leftEyePosition, leftPupilPosition),
-                rightPupilOffset:
-                    _calculatePupilOffset(rightEyePosition, rightPupilPosition),
-              ),
+            child: AnimatedBuilder(
+              animation: controller.controller,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: EyePainter(
+                    leftEyeCenter: controller.leftEyePosition,
+                    rightEyeCenter: controller.rightEyePosition,
+                    eyeRadius: controller.eyeRadius,
+                    leftPupilOffset: PupilHelper.calculatePupilOffset(
+                        controller.leftEyePosition,
+                        controller.leftPupilPosition.value,
+                        controller.eyeRadius),
+                    rightPupilOffset: PupilHelper.calculatePupilOffset(
+                        controller.rightEyePosition,
+                        controller.rightPupilPosition.value,
+                        controller.eyeRadius),
+                  ),
+                );
+              },
             ),
           ),
         ],
       ),
     );
   }
-
-  Offset _calculatePupilOffset(Offset eyeCenter, Offset pupilTarget) {
-    final dx = pupilTarget.dx - eyeCenter.dx;
-    final dy = pupilTarget.dy - eyeCenter.dy;
-    final distance = sqrt(dx * dx + dy * dy);
-    final maxDistance = eyeRadius / 2;
-
-    if (distance < maxDistance) {
-      return pupilTarget;
-    } else {
-      final angle = atan2(dy, dx);
-      return Offset(
-        eyeCenter.dx + cos(angle) * maxDistance,
-        eyeCenter.dy + sin(angle) * maxDistance,
-      );
-    }
-  }
 }
 
-class DoubleEyePainter extends CustomPainter {
+class EyePainter extends CustomPainter {
   final Offset leftEyeCenter;
   final Offset rightEyeCenter;
   final double eyeRadius;
   final Offset leftPupilOffset;
   final Offset rightPupilOffset;
 
-  DoubleEyePainter({
+  EyePainter({
     required this.leftEyeCenter,
     required this.rightEyeCenter,
     required this.eyeRadius,
@@ -191,7 +99,6 @@ class DoubleEyePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     _drawEye(canvas, leftEyeCenter, leftPupilOffset);
-
     _drawEye(canvas, rightEyeCenter, rightPupilOffset);
   }
 
@@ -218,3 +125,94 @@ class DoubleEyePainter extends CustomPainter {
     return true;
   }
 }
+
+class PupilHelper {
+  static Offset calculatePupilOffset(
+      Offset eyeCenter, Offset pupilTarget, double eyeRadius) {
+    final dx = pupilTarget.dx - eyeCenter.dx;
+    final dy = pupilTarget.dy - eyeCenter.dy;
+    final distance = sqrt(dx * dx + dy * dy);
+    final maxDistance = eyeRadius / 2;
+
+    if (distance < maxDistance) {
+      return pupilTarget;
+    } else {
+      final angle = atan2(dy, dx);
+      return Offset(
+        eyeCenter.dx + cos(angle) * maxDistance,
+        eyeCenter.dy + sin(angle) * maxDistance,
+      );
+    }
+  }
+}
+
+
+
+////////// IF CHANGE TO USE ASSETS SVG
+/*
+class EyeWidget extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.put(EyeController());
+
+    return GestureDetector(
+      onTapDown: (details) => controller.handleTapDown(details.localPosition),
+      onTapUp: (_) => controller.handleTapUp(),
+      onPanUpdate: (details) {
+        controller.leftPupilPosition.value = details.localPosition;
+        controller.rightPupilPosition.value = details.localPosition;
+      },
+      onPanEnd: (_) {
+        Future.delayed(const Duration(seconds: 4), () {
+          controller.movePupils(controller.leftEyePosition, controller.rightEyePosition);
+        });
+      },
+      child: Stack(
+        children: [
+          // Menggunakan SVG untuk menggambar mata kiri
+          Positioned(
+            left: controller.leftEyePosition.dx - controller.eyeRadius,
+            top: controller.leftEyePosition.dy - controller.eyeRadius,
+            child: SvgPicture.asset(
+              'assets/eye.svg',
+              width: controller.eyeRadius * 2,
+              height: controller.eyeRadius * 2,
+            ),
+          ),
+          // Menggunakan SVG untuk menggambar mata kanan
+          Positioned(
+            left: controller.rightEyePosition.dx - controller.eyeRadius,
+            top: controller.rightEyePosition.dy - controller.eyeRadius,
+            child: SvgPicture.asset(
+              'assets/eye.svg',
+              width: controller.eyeRadius * 2,
+              height: controller.eyeRadius * 2,
+            ),
+          ),
+          // Menggunakan SVG untuk menggambar pupil kiri yang bisa bergerak
+          Obx(() => Positioned(
+                left: controller.leftPupilPosition.value.dx - controller.eyeRadius / 3,
+                top: controller.leftPupilPosition.value.dy - controller.eyeRadius / 3,
+                child: SvgPicture.asset(
+                  'assets/pupil.svg',
+                  width: controller.eyeRadius / 1.5,
+                  height: controller.eyeRadius / 1.5,
+                ),
+              )),
+          // Menggunakan SVG untuk menggambar pupil kanan yang bisa bergerak
+          Obx(() => Positioned(
+                left: controller.rightPupilPosition.value.dx - controller.eyeRadius / 3,
+                top: controller.rightPupilPosition.value.dy - controller.eyeRadius / 3,
+                child: SvgPicture.asset(
+                  'assets/pupil.svg',
+                  width: controller.eyeRadius / 1.5,
+                  height: controller.eyeRadius / 1.5,
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+*/

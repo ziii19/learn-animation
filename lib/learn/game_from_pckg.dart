@@ -21,8 +21,13 @@ class _MyWidgetState extends State<MyWidget> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
-      body: GameWidget(game: _game!),
+      appBar: AppBar(
+        title: const Text('Game From Package'),
+      ),
+      body: SizedBox(
+          width: double.infinity,
+          height: double.infinity,
+          child: GameWidget(game: _game!)),
     );
   }
 }
